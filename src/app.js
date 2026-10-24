@@ -35,6 +35,10 @@ const cors = require('cors');
 // Es literalmente la app completa, encapsulada en un objeto.
 const app = express();
 
+// Usa una variable de entorno para la URL del frontend en producción
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+app.use(cors({ origin: allowedOrigin, credentials: true }));
+
 // ----------------------------------------------------------------------------
 // 3. MIDDLEWARES GLOBALES
 // ----------------------------------------------------------------------------
@@ -133,12 +137,6 @@ app.use((req, res) => {
     path: req.originalUrl,
   });
 });
-
-
-// Usa una variable de entorno para la URL del frontend en producción
-const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
-app.use(cors({ origin: allowedOrigin, credentials: true }));
-
 
 // ----------------------------------------------------------------------------
 // 5. EXPORTACIÓN DE LA APP
