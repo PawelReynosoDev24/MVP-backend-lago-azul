@@ -102,17 +102,17 @@ const crearProducto = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const { producto, codigo, stock_actual_onzas, conversiones, color_hex } = req.body;
+    
+    // req.file.filename ahora contiene la URL completa de Cloudinary (https://res.cloudinary.com/...)
     const foto = req.file ? req.file.filename : null;
 
-    // ---- 1. Validaciones antes de tocar la BD ----
+    // ---- 1. Validaciones básicas ----
     if (!codigo || typeof codigo !== 'string' || codigo.trim() === '') {
       await t.rollback();
-      eliminarArchivo(foto);
       return res.status(400).json({ error: 'El campo "codigo" es obligatorio' });
     }
     if (codigo.trim().length > 8) {
       await t.rollback();
-      eliminarArchivo(foto);
       return res.status(400).json({ error: 'El código no puede tener más de 8 caracteres' });
     }
 
@@ -121,7 +121,6 @@ const crearProducto = async (req, res) => {
       stock = Number(stock_actual_onzas);
       if (!Number.isFinite(stock) || stock < 0) {
         await t.rollback();
-        eliminarArchivo(foto);
         return res.status(400).json({ error: 'stock_actual_onzas debe ser >= 0' });
       }
     }
@@ -133,28 +132,23 @@ const crearProducto = async (req, res) => {
         convs = typeof conversiones === 'string' ? JSON.parse(conversiones) : conversiones;
       } catch (_) {
         await t.rollback();
-        eliminarArchivo(foto);
         return res.status(400).json({ error: 'El campo "conversiones" no es JSON válido' });
       }
       if (!Array.isArray(convs)) {
         await t.rollback();
-        eliminarArchivo(foto);
         return res.status(400).json({ error: '"conversiones" debe ser un array' });
       }
 
-      // Validar cada conversión y verificar que la unidad exista
       const idsUnidad = [];
       for (const c of convs) {
         const factor = Number(c.factor_conversion);
         const idUnidad = Number(c.id_unidad);
         if (!Number.isFinite(factor) || factor <= 0) {
           await t.rollback();
-          eliminarArchivo(foto);
           return res.status(400).json({ error: 'Cada conversión requiere factor_conversion > 0' });
         }
         if (!Number.isInteger(idUnidad)) {
           await t.rollback();
-          eliminarArchivo(foto);
           return res.status(400).json({ error: 'Cada conversión requiere id_unidad entero' });
         }
         idsUnidad.push(idUnidad);
@@ -167,7 +161,6 @@ const crearProducto = async (req, res) => {
       });
       if (unidadesExistentes.length !== new Set(idsUnidad).size) {
         await t.rollback();
-        eliminarArchivo(foto);
         return res.status(400).json({ error: 'Una o más unidades no existen' });
       }
     }
@@ -178,10 +171,6 @@ const crearProducto = async (req, res) => {
         ? producto.trim()
         : null;
 
-    // NUEVA LÓGICA DE COLOR:
-    // Prioriza el color enviado en el body (si el usuario lo cambió en el frontend)
-    // Si no viene en el body, usa el que extrajo el middleware de la foto
-    // Si no hay ninguno, usa el gris por defecto.
     const colorFinal = color_hex || req.file?.color_hex || '#CCCCCC';
 
     const nuevo = await Producto.create(
@@ -189,7 +178,7 @@ const crearProducto = async (req, res) => {
         producto: productoFinal,
         codigo: codigo.trim(),
         foto,
-        color_hex: colorFinal, // <-- Aquí usas la variable calculada
+        color_hex: colorFinal,
         stock_actual_onzas: stock,
       },
       { transaction: t }
@@ -209,14 +198,12 @@ const crearProducto = async (req, res) => {
 
     await t.commit();
 
-    // ---- 5. Re-consultar con include para devolver forma completa ----
     const creado = await Producto.findByPk(nuevo.id_producto, {
       include: includeConversiones,
     });
     res.status(201).json(creado);
   } catch (error) {
     await t.rollback();
-    eliminarArchivo(req.file?.filename);
 
     if (error.name === 'SequelizeUniqueConstraintError') {
       const campo = error.fields?.codigo ? 'código' : 'nombre';
@@ -239,13 +226,11 @@ const actualizarProducto = async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {
-      eliminarArchivo(req.file?.filename);
       return res.status(400).json({ error: 'ID inválido' });
     }
 
     const prod = await Producto.findByPk(id);
     if (!prod) {
-      eliminarArchivo(req.file?.filename);
       return res.status(404).json({ error: 'Producto no encontrado' });
     }
 
@@ -254,11 +239,9 @@ const actualizarProducto = async (req, res) => {
 
     if (codigo !== undefined) {
       if (typeof codigo !== 'string' || codigo.trim() === '') {
-        eliminarArchivo(req.file?.filename);
         return res.status(400).json({ error: '"codigo" no puede estar vacío' });
       }
       if (codigo.trim().length > 8) {
-        eliminarArchivo(req.file?.filename);
         return res.status(400).json({ error: 'El código no puede tener más de 8 caracteres' });
       }
       cambios.codigo = codigo.trim();
@@ -271,33 +254,27 @@ const actualizarProducto = async (req, res) => {
           : null;
     }
 
-    // 1. Validar si el usuario envió un color manualmente desde el frontend
+    // Validar color manual o extraído de la nueva foto
     if (color_hex !== undefined) {
-      // Validación simple de formato hex
       if (typeof color_hex !== 'string' || !/^#[0-9A-F]{6}$/i.test(color_hex)) {
-        eliminarArchivo(req.file?.filename);
         return res.status(400).json({ error: 'El color_hex debe tener formato #RRGGBB' });
       }
       cambios.color_hex = color_hex;
-    } 
-    // 2. Si no envió color manual, pero subió una foto nueva, usamos el color extraído
-    else if (req.file && req.file.color_hex) {
+    } else if (req.file && req.file.color_hex) {
       cambios.color_hex = req.file.color_hex;
     }
 
     if (stock_actual_onzas !== undefined && stock_actual_onzas !== '') {
       const s = Number(stock_actual_onzas);
       if (!Number.isFinite(s) || s < 0) {
-        eliminarArchivo(req.file?.filename);
         return res.status(400).json({ error: 'stock_actual_onzas debe ser >= 0' });
       }
       cambios.stock_actual_onzas = s;
     }
 
-    // Si viene foto nueva, borrar la anterior del disco
+    // Si viene foto nueva, actualizamos el campo con la nueva URL de Cloudinary
     if (req.file) {
-      eliminarArchivo(prod.foto);
-      cambios.foto = req.file.filename;
+      cambios.foto = req.file.filename; 
     }
 
     await prod.update(cambios);
@@ -305,7 +282,6 @@ const actualizarProducto = async (req, res) => {
     const actualizado = await Producto.findByPk(id, { include: includeConversiones });
     res.json(actualizado);
   } catch (error) {
-    eliminarArchivo(req.file?.filename);
     if (error.name === 'SequelizeUniqueConstraintError') {
       return res.status(409).json({ error: 'El código o nombre ya existe' });
     }
