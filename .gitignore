@@ -8,7 +8,7 @@ node_modules/
 uploads/
 
 # Certificados de base de datos
-certs/
+# certs/
 
 # Logs
 npm-debug.log*
