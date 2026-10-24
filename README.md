@@ -8,6 +8,7 @@ Este es el servidor API REST para el sistema de inventario de Lago Azul.
 - Sequelize (ORM para MySQL)
 - JWT para autenticación
 - Sharp para procesamiento de imágenes
+- Cors para la comunicación
 
 ## Instalación Local
 1. Clonar el repositorio.
