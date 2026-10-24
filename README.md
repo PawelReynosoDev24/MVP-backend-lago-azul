@@ -20,3 +20,7 @@ Este es el servidor API REST para el sistema de inventario de Lago Azul.
 - **Build Command:** `npm install`
 - **Start Command:** `npm start`
 - **Variables de entorno necesarias:** `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT`, `JWT_SECRET`, `FRONTEND_URL`, `NODE_ENV=production`.
+
+Creado por Pawel Alessandro Reynoso Marquez
+Proyecto iniciado: 20 de octubre del 2026
+Subido a Github: 23 de octubre del 2026
