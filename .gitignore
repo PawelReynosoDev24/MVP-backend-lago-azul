@@ -1,0 +1,23 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno
+.env
+
+# Archivos subidos por los usuarios (no deben ir a Git)
+uploads/
+
+# Certificados de base de datos
+certs/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test
+testmodelo.js
+
+# Pruebas de Login
+login.ps1
+login2.ps1
